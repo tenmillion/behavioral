@@ -1,4 +1,4 @@
-function PlayOddballNP_LED(ratID, params)
+function PlayOddballNP_LED(ratID, arduino, params)
     %% Basic parameters
     % Time of one trial (in seconds)
     load gong;
@@ -14,23 +14,18 @@ function PlayOddballNP_LED(ratID, params)
         
     stimtype = 'oddballNP_LED';
     
-    %% Arduino
     voltage1 = zeros(1.5*ttrial*vSampleRate,1);
     voltage2 = zeros(1.5*ttrial*vSampleRate,1);
-    disp('Connecting to arduino 1 (COM3)...');
-    ard1 = arduino('COM3','uno');
-    disp('Connected to arduino 1');
-    
-    disp('Connecting to arduino 2 (COM4)...');
-    ard2 = arduino('COM4','uno');
-    disp('Connected to arduino 2');
     
     %% Set parameters from args
     if nargin < 1 || isempty(ratID)
         % Rat ID
         ratID = 'test';
     end
-    if nargin < 2 || isempty(params)
+    if nargin < 2 || isempty(arduino)
+        arduino = 0; % test mode
+    end
+    if nargin < 3 || isempty(params)
         % Other parameters
         s1 = 'gong';
         s2 = 'none';
@@ -46,20 +41,29 @@ function PlayOddballNP_LED(ratID, params)
         nodd = params.nodd;
     end
 
+    %% Arduino
+    if arduino
+        disp('Connecting to arduino 1 (COM3)...');
+        ard1 = arduino('COM3','uno');
+        disp('Connected to arduino 1');
+
+        disp('Connecting to arduino 2 (COM4)...');
+        ard2 = arduino('COM4','uno');
+        disp('Connected to arduino 2');
+    end
+    
     fprintf('Number of oddballs:\t %d \n',nodd);
     
     %% Stimulus files
     filename1 = strcat(s1,'_oddball_seq_a_');
     filename2 = strcat(s2,'_oddball_seq_b_');
     
-    %change
-    
     %% Directory for saving
     if IsWin
-        savedir = 'C:\Users\OIST\ownCloud\Thesis\BehExp\MusicLounge\';
+        savedir = 'C:\Users\OIST\ownCloud\Thesis\BehExp\behavioral\';
         sep = '\';
     else
-        savedir = '/Users/yoriko/ownCloud/Thesis/BehExp/MusicLounge/';
+        savedir = '/Users/yoriko/ownCloud/Thesis/BehExp/behavioral/';
         sep='/';
     end
 
@@ -109,8 +113,8 @@ function PlayOddballNP_LED(ratID, params)
         beeps1 = beeps1(1:totaldur);
         
         if ~strcmp(s1,'none')
-            audiowrite(strcat(filename1,int2str(k),'.wav'),beeps1,Fs);
-            csvwrite(strcat(filename1,int2str(k),'stm.csv'),stims1(k,:)');
+            audiowrite(strcat(savedir,sep,'stimuli',sep,filename1,int2str(k),'.wav'),beeps1,Fs);
+            csvwrite(strcat(savedir,sep,'stimuli',sep,filename1,int2str(k),'stm.csv'),stims1(k,:)');
         end
             
         %% Generate sequence of beeps 2 separated by random intervals
@@ -123,8 +127,8 @@ function PlayOddballNP_LED(ratID, params)
         beeps2 = beeps2(1:totaldur);
 
         if ~strcmp(s2,'none')
-            audiowrite(strcat(filename2,int2str(k),'.wav'),beeps2,Fs);
-            csvwrite(strcat(filename2,int2str(k),'stm.csv'),stims2(k,:)');
+            audiowrite(strcat(savedir,sep,'stimuli',sep,filename2,int2str(k),'.wav'),beeps2,Fs);
+            csvwrite(strcat(savedir,sep,'stimuli',sep,filename2,int2str(k),'stm.csv'),stims2(k,:)');
         end
     end
 
@@ -152,13 +156,13 @@ function PlayOddballNP_LED(ratID, params)
     for ii = 1:maxleverpresses
         if ~strcmp(s1,'none')
             pahandle1(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
-            wavedata1 = audioread(strcat(filename1,int2str(ii),'.wav'))';
+            wavedata1 = audioread(strcat(savedir,sep,'stimuli',sep,filename1,int2str(ii),'.wav'))';
             PsychPortAudio('FillBuffer', pahandle1(ii), wavedata1);
             disp(strcat('Loaded ',filename1,int2str(ii),'.wav'));
         end
         if ~strcmp(s2,'none') 
             pahandle2(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
-            wavedata2 = audioread(strcat(filename2,int2str(ii),'.wav'))';
+            wavedata2 = audioread(strcat(savedir,sep,'stimuli',sep,filename2,int2str(ii),'.wav'))';
             PsychPortAudio('FillBuffer', pahandle2(ii), wavedata2);
             disp(strcat('Loaded ',filename2,int2str(ii),'.wav'));
         end
@@ -194,8 +198,13 @@ function PlayOddballNP_LED(ratID, params)
     j = 1; % count lever presses
     
     while vindex <= length(voltage1)
-        voltage1(vindex) = readVoltage(ard1,'A0')+1; % read photo transistor value from arduino
-        voltage2(vindex) = readVoltage(ard2,'A0')+1; % read photo transistor value from arduino
+        if arduino
+            voltage1(vindex) = readVoltage(ard1,'A0')+1; % read photo transistor value from arduino
+            voltage2(vindex) = readVoltage(ard2,'A0')+1; % read photo transistor value from arduino
+        else
+            voltage1(vindex) = rand(1)*2+3; % for testing code
+            voltage2(vindex) = rand(1)*2+3; % for testing code
+        end
             
         [ keyIsDown, keyTime, keyCodeTemp ] = KbCheck;
         if keyIsDown
@@ -234,7 +243,9 @@ function PlayOddballNP_LED(ratID, params)
                     choiceseq(j) = 1;
                     triggerTimes(j_trial,1) = GetSecs;
                     if ~strcmp(s1,'none')
-                        writeDigitalPin(ard1,'D12',1);
+                        if arduino
+                            writeDigitalPin(ard1,'D12',1);
+                        end
                         %disp('Turned on LED 1');
                         PsychPortAudio('Start', pahandle1(j), [], triggerTimes(j_trial,1));
                     else
@@ -245,7 +256,9 @@ function PlayOddballNP_LED(ratID, params)
                     if ~strcmp(s1,'none')
                         fprintf(strcat('Playing\t',filename1,int2str(j),'.wav...\n'));
                         PsychPortAudio('Stop', pahandle1(j), 3);
-                        writeDigitalPin(ard1,'D12',0);
+                        if arduino
+                            writeDigitalPin(ard1,'D12',0);
+                        end
                         %disp('Turned off LED 1');
                     end
                     
@@ -258,7 +271,9 @@ function PlayOddballNP_LED(ratID, params)
                     choiceseq(j) = 2;
                     triggerTimes(j_trial,2) = GetSecs;
                     if ~strcmp(s2,'none')
-                        writeDigitalPin(ard2,'D12',1);
+                        if arduino
+                            writeDigitalPin(ard2,'D12',1);
+                        end
                         %disp('Turned on LED 2');
                         PsychPortAudio('Start', pahandle2(j), [], triggerTimes(j_trial,2));
                     else
@@ -268,7 +283,9 @@ function PlayOddballNP_LED(ratID, params)
                     if ~strcmp(s2,'none')
                         fprintf(strcat('Playing\t',filename2,int2str(j),'.wav...\n'));
                         PsychPortAudio('Stop', pahandle2(j), 3);
-                        writeDigitalPin(ard2,'D12',0);
+                        if arduino
+                            writeDigitalPin(ard2,'D12',0);
+                        end
                         %disp('Turned off LED 2');
                     end
 
@@ -314,10 +331,12 @@ function PlayOddballNP_LED(ratID, params)
     fprintf('Nosepoke samples %d \n',nnz(voltage1));
 
     PsychPortAudio('Close');
-    writeDigitalPin(ard1,'D12',0);
-    writeDigitalPin(ard2,'D12',0);
+    if arduino
+        writeDigitalPin(ard1,'D12',0);
+        writeDigitalPin(ard2,'D12',0);
     
-    clear ard1 ard2;
+        clear ard1 ard2;
+    end
     endTime = datetime('now');
     disp('Ending session...');
     %BaselineNP(:,2) = BaselineNP(:,2) - beginTimeRecord;
@@ -332,22 +351,22 @@ function PlayOddballNP_LED(ratID, params)
     csvwrite(strcat(savedir,savefilenameEnd,'_voltage1.csv'),nonzeros(voltage1));
     csvwrite(strcat(savedir,savefilenameEnd,'_voltage2.csv'),nonzeros(voltage2));
     
-    % Save generated stimuli to CSV file
-    csvwrite(strcat(savedir,savefilenameEnd,'.csv'),[stims1',stims2',intvs1,intvs2]);
+%     % Save generated stimuli to CSV file
+%     csvwrite(strcat(savedir,savefilenameEnd,'.csv'),[stims1',stims2',intvs1,intvs2]);
 
-    % Save actually used stimuli to CSV file
-    used_stims = zeros(nbeeps,maxleverpresses);
-    used_intvs = zeros(nbeeps,maxleverpresses);
-    for lp = 1:maxleverpresses
-        if choiceseq(lp) == 1
-            used_stims(:,lp) = stims1(lp,:)';
-            used_intvs(:,lp) = intvs1(:,lp);
-        elseif choiceseq(lp) == 2
-            used_stims(:,lp) = stims2(lp,:)';
-            used_intvs(:,lp) = intvs2(:,lp);
-        end
-    end
-    csvwrite(strcat(savedir,savefilenameEnd,'_used.csv'),[used_stims,used_intvs]);
+%     % Save actually used stimuli to CSV file
+%     used_stims = zeros(nbeeps,maxleverpresses);
+%     used_intvs = zeros(nbeeps,maxleverpresses);
+%     for lp = 1:maxleverpresses
+%         if choiceseq(lp) == 1
+%             used_stims(:,lp) = stims1(lp,:)';
+%             used_intvs(:,lp) = intvs1(:,lp);
+%         elseif choiceseq(lp) == 2
+%             used_stims(:,lp) = stims2(lp,:)';
+%             used_intvs(:,lp) = intvs2(:,lp);
+%         end
+%     end
+%     csvwrite(strcat(savedir,savefilenameEnd,'_used.csv'),[used_stims,used_intvs]);
     
     
     % Save summary to TXT file
