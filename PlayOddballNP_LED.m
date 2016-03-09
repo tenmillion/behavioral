@@ -14,19 +14,9 @@ function PlayOddballNP_LED(ratID, arduino, params)
         
     stimtype = 'oddballNP_LED';
     
-    %% Arduino
-    if arduino
-        voltage1 = zeros(1.5*ttrial*vSampleRate,1);
-        voltage2 = zeros(1.5*ttrial*vSampleRate,1);
-        disp('Connecting to arduino 1 (COM3)...');
-        ard1 = arduino('COM3','uno');
-        disp('Connected to arduino 1');
-
-        disp('Connecting to arduino 2 (COM4)...');
-        ard2 = arduino('COM4','uno');
-        disp('Connected to arduino 2');
-    end
-        
+    voltage1 = zeros(1.5*ttrial*vSampleRate,1);
+    voltage2 = zeros(1.5*ttrial*vSampleRate,1);
+    
     %% Set parameters from args
     if nargin < 1 || isempty(ratID)
         % Rat ID
@@ -51,6 +41,17 @@ function PlayOddballNP_LED(ratID, arduino, params)
         nodd = params.nodd;
     end
 
+    %% Arduino
+    if arduino
+        disp('Connecting to arduino 1 (COM3)...');
+        ard1 = arduino('COM3','uno');
+        disp('Connected to arduino 1');
+
+        disp('Connecting to arduino 2 (COM4)...');
+        ard2 = arduino('COM4','uno');
+        disp('Connected to arduino 2');
+    end
+    
     fprintf('Number of oddballs:\t %d \n',nodd);
     
     %% Stimulus files
@@ -112,8 +113,8 @@ function PlayOddballNP_LED(ratID, arduino, params)
         beeps1 = beeps1(1:totaldur);
         
         if ~strcmp(s1,'none')
-            audiowrite(strcat(filename1,int2str(k),'.wav'),beeps1,Fs);
-            csvwrite(strcat(filename1,int2str(k),'stm.csv'),stims1(k,:)');
+            audiowrite(strcat(savedir,sep,'stimuli',sep,filename1,int2str(k),'.wav'),beeps1,Fs);
+            csvwrite(strcat(savedir,sep,'stimuli',sep,filename1,int2str(k),'stm.csv'),stims1(k,:)');
         end
             
         %% Generate sequence of beeps 2 separated by random intervals
@@ -126,8 +127,8 @@ function PlayOddballNP_LED(ratID, arduino, params)
         beeps2 = beeps2(1:totaldur);
 
         if ~strcmp(s2,'none')
-            audiowrite(strcat(filename2,int2str(k),'.wav'),beeps2,Fs);
-            csvwrite(strcat(filename2,int2str(k),'stm.csv'),stims2(k,:)');
+            audiowrite(strcat(savedir,sep,'stimuli',sep,filename2,int2str(k),'.wav'),beeps2,Fs);
+            csvwrite(strcat(savedir,sep,'stimuli',sep,filename2,int2str(k),'stm.csv'),stims2(k,:)');
         end
     end
 
@@ -155,13 +156,13 @@ function PlayOddballNP_LED(ratID, arduino, params)
     for ii = 1:maxleverpresses
         if ~strcmp(s1,'none')
             pahandle1(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
-            wavedata1 = audioread(strcat(filename1,int2str(ii),'.wav'))';
+            wavedata1 = audioread(strcat(savedir,sep,'stimuli',sep,filename1,int2str(ii),'.wav'))';
             PsychPortAudio('FillBuffer', pahandle1(ii), wavedata1);
             disp(strcat('Loaded ',filename1,int2str(ii),'.wav'));
         end
         if ~strcmp(s2,'none') 
             pahandle2(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
-            wavedata2 = audioread(strcat(filename2,int2str(ii),'.wav'))';
+            wavedata2 = audioread(strcat(savedir,sep,'stimuli',sep,filename2,int2str(ii),'.wav'))';
             PsychPortAudio('FillBuffer', pahandle2(ii), wavedata2);
             disp(strcat('Loaded ',filename2,int2str(ii),'.wav'));
         end
@@ -350,22 +351,22 @@ function PlayOddballNP_LED(ratID, arduino, params)
     csvwrite(strcat(savedir,savefilenameEnd,'_voltage1.csv'),nonzeros(voltage1));
     csvwrite(strcat(savedir,savefilenameEnd,'_voltage2.csv'),nonzeros(voltage2));
     
-    % Save generated stimuli to CSV file
-    csvwrite(strcat(savedir,savefilenameEnd,'.csv'),[stims1',stims2',intvs1,intvs2]);
+%     % Save generated stimuli to CSV file
+%     csvwrite(strcat(savedir,savefilenameEnd,'.csv'),[stims1',stims2',intvs1,intvs2]);
 
-    % Save actually used stimuli to CSV file
-    used_stims = zeros(nbeeps,maxleverpresses);
-    used_intvs = zeros(nbeeps,maxleverpresses);
-    for lp = 1:maxleverpresses
-        if choiceseq(lp) == 1
-            used_stims(:,lp) = stims1(lp,:)';
-            used_intvs(:,lp) = intvs1(:,lp);
-        elseif choiceseq(lp) == 2
-            used_stims(:,lp) = stims2(lp,:)';
-            used_intvs(:,lp) = intvs2(:,lp);
-        end
-    end
-    csvwrite(strcat(savedir,savefilenameEnd,'_used.csv'),[used_stims,used_intvs]);
+%     % Save actually used stimuli to CSV file
+%     used_stims = zeros(nbeeps,maxleverpresses);
+%     used_intvs = zeros(nbeeps,maxleverpresses);
+%     for lp = 1:maxleverpresses
+%         if choiceseq(lp) == 1
+%             used_stims(:,lp) = stims1(lp,:)';
+%             used_intvs(:,lp) = intvs1(:,lp);
+%         elseif choiceseq(lp) == 2
+%             used_stims(:,lp) = stims2(lp,:)';
+%             used_intvs(:,lp) = intvs2(:,lp);
+%         end
+%     end
+%     csvwrite(strcat(savedir,savefilenameEnd,'_used.csv'),[used_stims,used_intvs]);
     
     
     % Save summary to TXT file
