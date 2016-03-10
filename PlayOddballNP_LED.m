@@ -1,4 +1,4 @@
-function PlayOddballNP_LED(ratID, session, arduino, params)
+function PlayOddballNP_LED(ratID, session, arduinoON, params)
     %% Basic parameters
     % Time of one trial (in seconds)
     load gong;
@@ -8,9 +8,9 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     totaldurSec = 1; % length of a stimulus in seconds
     totaldur = Fs * totaldurSec; % samples
     vol = 1; % volume of sound
-    maxleverpresses = 50; %ceil(ttrial/totaldurSec);
+    maxnosepokes = 50; %ceil(ttrial/totaldurSec);
     
-    vSampleRate = 44; % nosepoke voltage sampling rate
+    vSampleRate = 46; % nosepoke voltage sampling rate
         
     stimtype = 'oddballNP_LED';
     
@@ -25,8 +25,8 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     if nargin < 2 || isempty(session)
         session = 0;
     end
-    if nargin < 3 || isempty(arduino)
-        arduino = 0; % test mode
+    if nargin < 3 || isempty(arduinoON)
+        arduinoON = 0; % test mode
     end
     if nargin < 4 || isempty(params)
         % Other parameters
@@ -45,7 +45,7 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     end
 
     %% Arduino
-    if arduino
+    if arduinoON
         disp('Connecting to arduino 1 (COM3)...');
         ard1 = arduino('COM3','uno');
         disp('Connected to arduino 1');
@@ -53,6 +53,9 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
         disp('Connecting to arduino 2 (COM4)...');
         ard2 = arduino('COM4','uno');
         disp('Connected to arduino 2');
+    else
+        v1Sample = repmat(csvread('voltage1.csv'),2,1);
+        v2Sample = repmat(csvread('voltage2.csv'),2,1);
     end
     
     fprintf('Number of oddballs:\t %d \n',nodd);
@@ -105,10 +108,10 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     beep(2,:) = x(length(x)-floor(length(y)*0.6)+1:length(x))';
     
     nbeeps = 8;
-    [intvs1,stims1] = gen_odd(nodd,nbeeps,maxleverpresses,0);
-    [intvs2,stims2] = gen_odd(nodd,nbeeps,maxleverpresses,0);
+    [intvs1,stims1] = gen_odd(nodd,nbeeps,maxnosepokes,0);
+    [intvs2,stims2] = gen_odd(nodd,nbeeps,maxnosepokes,0);
     
-    for k=1:maxleverpresses
+    for k=1:maxnosepokes
         %% Generate sequence of beeps 1
         beeps1 = beep(stims1(k,1),:);
         
@@ -154,10 +157,10 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     %pahandle = PsychPortAudio('Open', [], [], 0, Fs, nrchannels);
     PsychPortAudio('Volume', pamaster, vol);
     
-    pahandle1 = zeros(maxleverpresses,1);
-    pahandle2 = zeros(maxleverpresses,1);
+    pahandle1 = zeros(maxnosepokes,1);
+    pahandle2 = zeros(maxnosepokes,1);
     
-    for ii = 1:maxleverpresses
+    for ii = 1:maxnosepokes
         if ~strcmp(s1,'none')
             pahandle1(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
             wavedata1 = audioread(strcat(savedir,sep,filename1,int2str(ii),'.wav'))';
@@ -181,11 +184,13 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     disp('Initialized PsychSound.');
     
     %% Variables for recording
-    choiceseq = zeros(maxleverpresses,1);
+    choiceseq = zeros(maxnosepokes,1);
     started = 0;
     aborted = 0;
     nosepoke = 0;
-    triggerTimes = zeros(maxleverpresses,2);
+    wait1 = 0;
+    wait2 = 0;
+    triggerTimes = zeros(maxnosepokes,2);
     
     %% Loop to record nosepokes
     disp('Hit any key to start recording nosepokes');
@@ -199,12 +204,12 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     j = 1; % count lever presses
     
     while vindex <= length(voltage1)
-        if arduino
+        if arduinoON
             voltage1(vindex) = readVoltage(ard1,'A0')+1; % read photo transistor value from arduino
             voltage2(vindex) = readVoltage(ard2,'A0')+1; % read photo transistor value from arduino
         else
-            voltage1(vindex) = rand(1)*2+3; % for testing code
-            voltage2(vindex) = rand(1)*2+3; % for testing code
+            voltage1(vindex) = v1Sample(vindex); % for testing code
+            voltage2(vindex) = v2Sample(vindex); % for testing code
         end
             
         [ keyIsDown, keyTime, keyCodeTemp ] = KbCheck;
@@ -216,11 +221,15 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
             if keyCode(escape) % To abort
                 abortTime = GetSecs;                    
                 fprintf('Aborting recording at %d sec\n', abortTime - beginTimeRecord);
+                voltage1(vindex+1) = -1;
+                voltage2(vindex+1) = -1;
+                vindex = vindex + 1;
                 aborted = 1;
                 break;
             elseif keyCode(enter) % To begin trial
                 started = 1;
-                tStartSound = uint64(0);
+                tStartSound1 = uint64(0);
+                tStartSound2 = uint64(0);
                 j_trial = 1;
                 beginDateTrial = datetime('now');
                 beginTimeTrial = GetSecs;
@@ -236,67 +245,92 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
         
         %% Play sound in response to nosepokes
         if started % if trial has started
-            if (toc < ttrial) && (j <= maxleverpresses)% tic/toc pair 1
-                if (voltage1(vindex) < 4) && (toc(tStartSound) > totaldurSec) % tic/toc pair 2
-                    choiceseq(j) = 1;
-                    triggerTimes(j_trial,1) = GetSecs;
-                    if ~strcmp(s1,'none')
-                        if arduino
-                            writeDigitalPin(ard1,'D12',1);
+            if (toc < ttrial) && (j <= maxnosepokes)% tic/toc pair 1
+                
+                if ~wait1 % If voltage has been up
+                    if (voltage1(vindex) < 4) && (toc(tStartSound1) > totaldurSec) && (toc(tStartSound2) > totaldurSec) % tic/toc pair 2
+                        choiceseq(j) = 1;
+                        triggerTimes(j_trial,1) = GetSecs;
+                        if ~strcmp(s1,'none')
+                            if arduinoON
+                                writeDigitalPin(ard1,'D12',1);
+                            end
+                            %disp('Turned on LED 1');
+                            PsychPortAudio('Start', pahandle1(j), [], triggerTimes(j_trial,1));
+                        else
+                            disp('!Not playing anything');
                         end
-                        %disp('Turned on LED 1');
-                        PsychPortAudio('Start', pahandle1(j), [], triggerTimes(j_trial,1));
-                    else
-                        disp('!Not playing anything');
-                    end
-                    tStartSound = tic; % tic/toc pair 2
-                    
-                    if ~strcmp(s1,'none')
-                        fprintf(strcat('Playing\t',filename1,int2str(j),'.wav...\n'));
-                        PsychPortAudio('Stop', pahandle1(j), 3);
-                        if arduino
-                            writeDigitalPin(ard1,'D12',0);
+                        tStartSound1 = tic; % tic/toc pair 2
+                        wait1 = 1; % waiting for voltage1 to go back up
+                        
+                        if ~strcmp(s1,'none')
+                            fprintf(strcat('Playing\t',filename1,int2str(j),'.wav...\n'));
+                            PsychPortAudio('Stop', pahandle1(j), 3);
+                            if arduinoON
+                                writeDigitalPin(ard1,'D12',0);
+                            end
+                            %disp('Turned off LED 1');
                         end
-                        %disp('Turned off LED 1');
-                    end
-                    
-                    voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = ones(totaldurSec*vSampleRate,1);
-                    voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = 10*ones(totaldurSec*vSampleRate,1);
-                    vindex = vindex + totaldurSec*vSampleRate; % 
-                    j = j+1;
-                    j_trial = j_trial+1;
-                elseif (voltage2(vindex) < 4) && (toc(tStartSound) > totaldurSec)
-                    choiceseq(j) = 2;
-                    triggerTimes(j_trial,2) = GetSecs;
-                    if ~strcmp(s2,'none')
-                        if arduino
-                            writeDigitalPin(ard2,'D12',1);
-                        end
-                        %disp('Turned on LED 2');
-                        PsychPortAudio('Start', pahandle2(j), [], triggerTimes(j_trial,2));
-                    else
-                        disp('!Not playing anything');
-                    end
-                    tStartSound = tic; % tic/toc pair 2
-                    if ~strcmp(s2,'none')
-                        fprintf(strcat('Playing\t',filename2,int2str(j),'.wav...\n'));
-                        PsychPortAudio('Stop', pahandle2(j), 3);
-                        if arduino
-                            writeDigitalPin(ard2,'D12',0);
-                        end
-                        %disp('Turned off LED 2');
-                    end
 
-                    voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = 10*ones(totaldurSec*vSampleRate,1);
-                    voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = ones(totaldurSec*vSampleRate,1);
-                    vindex = vindex + totaldurSec*vSampleRate; % 
-                    j = j+1;
-                    j_trial = j_trial+1;
+                        voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = 0.5*ones(totaldurSec*vSampleRate,1);
+                        voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = 5.45*ones(totaldurSec*vSampleRate,1);
+                        vindex = vindex + totaldurSec*vSampleRate; % 
+                        j = j+1;
+                        j_trial = j_trial+1;
+                    elseif voltage1(vindex)<4
+                        disp('---still playing sound 1');
+                    end
+                else % If voltage has not gone up
+                    if mean(voltage1(vindex-vSampleRate/2+1:vindex))>4
+                        wait1 = 0;
+                    else
+                        %disp('Waiting for voltage 1 to go back up');
+                    end
                 end
+                
+                if ~wait2 % If voltage has been up
+                    if (voltage2(vindex) < 4) && (toc(tStartSound2) > totaldurSec) && (toc(tStartSound1) > totaldurSec) % tic/toc pair 2
+                        choiceseq(j) = 2;
+                        triggerTimes(j_trial,2) = GetSecs;
+                        if ~strcmp(s2,'none')
+                            if arduinoON
+                                writeDigitalPin(ard2,'D12',1);
+                            end
+                            %disp('Turned on LED 2');
+                            PsychPortAudio('Start', pahandle2(j), [], triggerTimes(j_trial,2));
+                        else
+                            disp('!Not playing anything');
+                        end
+                        tStartSound2 = tic; % tic/toc pair 2
+                        wait2 = 1; % waiting for voltage2 to go back up
+                        
+                        if ~strcmp(s2,'none')
+                            fprintf(strcat('Playing\t',filename2,int2str(j),'.wav...\n'));
+                            PsychPortAudio('Stop', pahandle2(j), 3);
+                            if arduinoON
+                                writeDigitalPin(ard2,'D12',0);
+                            end
+                            %disp('Turned off LED 2');
+                        end
+
+                        voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = 5.35*ones(totaldurSec*vSampleRate,1);
+                        voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = 0.5*ones(totaldurSec*vSampleRate,1);
+                        vindex = vindex + totaldurSec*vSampleRate; % 
+                        j = j+1;
+                        j_trial = j_trial+1;
+                    elseif voltage2(vindex)<4
+                        disp('---still playing sound 2');
+                    end
+                else % If voltage has not gone up
+                    if mean(voltage2(vindex-vSampleRate/2+1:vindex))>4
+                        wait2 = 0;
+                    else
+                        %disp('Waiting for voltage 2 to go back up');
+                    end
+                end
+                
             else % close trial
-                started = 0;
                 fprintf('Ending trial at %f sec \n', GetSecs-beginTimeRecord);
-                trials = trials + 1;
                 voltage1(vindex+1) = -1;
                 voltage2(vindex+1) = -1;
                 vindex = vindex + 1;
@@ -328,7 +362,7 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     fprintf('Nosepoke samples %d \n',nnz(voltage1));
 
     PsychPortAudio('Close');
-    if arduino
+    if arduinoON
         writeDigitalPin(ard1,'D12',0);
         writeDigitalPin(ard2,'D12',0);
     
@@ -364,9 +398,9 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     csvwrite(strcat(savedir,sep,'choices.csv'),choiceseq);
     
    %% Save actually used stimuli to CSV file
-    used_stims = zeros(nbeeps,maxleverpresses);
+    used_stims = zeros(nbeeps,maxnosepokes);
 %     used_intvs = zeros(nbeeps,maxleverpresses);
-    for lp = 1:maxleverpresses
+    for lp = 1:maxnosepokes
         if choiceseq(lp) == 1
             used_stims(:,lp) = stims1(lp,:)';
 %             used_intvs(:,lp) = intvs1(:,lp);
@@ -378,10 +412,21 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     csvwrite(strcat(savedir,sep,'stim_used.csv'),used_stims);    
     
     %% Save session data to MAT file
+<<<<<<< HEAD
     if ~aborted
         save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord');
     else
         save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
+=======
+    if aborted && started
+        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
+    elseif started
+        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord');
+    elseif aborted
+        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','endTimeRecord','endDateRecord','abortTime');
+    else
+        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','endTimeRecord','endDateRecord');
+>>>>>>> refs/remotes/origin/new-NP-counting
     end
     
     
