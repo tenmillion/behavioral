@@ -281,7 +281,7 @@ function PlayOddballNP_LED(ratID, session, arduinoON, params)
                         disp('---still playing sound 1');
                     end
                 else % If voltage has not gone up
-                    if mean(voltage1(vindex-vSampleRate/2+1:vindex))>4
+                    if mean(voltage1(vindex-floor(vSampleRate/2)+1:vindex))>4
                         wait1 = 0;
                     else
                         %disp('Waiting for voltage 1 to go back up');
@@ -322,7 +322,7 @@ function PlayOddballNP_LED(ratID, session, arduinoON, params)
                         disp('---still playing sound 2');
                     end
                 else % If voltage has not gone up
-                    if mean(voltage2(vindex-vSampleRate/2+1:vindex))>4
+                    if mean(voltage2(vindex-floor(vSampleRate/2)+1:vindex))>4
                         wait2 = 0;
                     else
                         %disp('Waiting for voltage 2 to go back up');
