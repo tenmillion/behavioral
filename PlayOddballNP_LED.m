@@ -1,4 +1,4 @@
-function PlayOddballNP_LED(ratID, arduino, params)
+function PlayOddballNP_LED(ratID, session, arduino, params)
     %% Basic parameters
     % Time of one trial (in seconds)
     load gong;
@@ -22,10 +22,13 @@ function PlayOddballNP_LED(ratID, arduino, params)
         % Rat ID
         ratID = 'test';
     end
-    if nargin < 2 || isempty(arduino)
+    if nargin < 2 || isempty(session)
+        session = 0;
+    end
+    if nargin < 3 || isempty(arduino)
         arduino = 0; % test mode
     end
-    if nargin < 3 || isempty(params)
+    if nargin < 4 || isempty(params)
         % Other parameters
         s1 = 'gong';
         s2 = 'none';
@@ -58,14 +61,17 @@ function PlayOddballNP_LED(ratID, arduino, params)
     filename1 = strcat(s1,'_oddball_seq_a_');
     filename2 = strcat(s2,'_oddball_seq_b_');
     
-    %% Directory for saving
+    %% Create directory for saving
     if IsWin
-        savedir = 'C:\Users\OIST\ownCloud\Thesis\BehExp\behavioral\';
+        savedir = 'C:\Users\OIST\ownCloud\Thesis\BehExp\behavioral';
         sep = '\';
     else
-        savedir = '/Users/yoriko/ownCloud/Thesis/BehExp/behavioral/';
+        savedir = '/Users/yoriko/ownCloud/Thesis/BehExp/behavioral';
         sep='/';
     end
+    savedir = strcat(savedir,sep,ratID,int2str(session));
+    mkdir(savedir);
+    disp(strcat('Working in directory ',savedir));
 
 %     %% Read sounds
 %     disp('Reading wav files');
@@ -103,35 +109,33 @@ function PlayOddballNP_LED(ratID, arduino, params)
     [intvs2,stims2] = gen_odd(nodd,nbeeps,maxleverpresses,0);
     
     for k=1:maxleverpresses
-        %% Generate sequence of beeps 1 separated by random intervals
+        %% Generate sequence of beeps 1
         beeps1 = beep(stims1(k,1),:);
         
         for j = 2:nbeeps
             beeps1=[beeps1,beep(stims1(k,j),:)];
         end
-        % do truncate at totaldur
-        beeps1 = beeps1(1:totaldur);
+        % don't truncate at totaldur
+        % beeps1 = beeps1(1:totaldur);
         
         if ~strcmp(s1,'none')
-            audiowrite(strcat(savedir,sep,'stimuli',sep,filename1,int2str(k),'.wav'),beeps1,Fs);
-            csvwrite(strcat(savedir,sep,'stimuli',sep,filename1,int2str(k),'stm.csv'),stims1(k,:)');
+            audiowrite(strcat(savedir,sep,filename1,int2str(k),'.wav'),beeps1,Fs);
         end
             
-        %% Generate sequence of beeps 2 separated by random intervals
+        %% Generate sequence of beeps 2
         beeps2 = beep(stims2(k,1),:);
         
         for j = 2:nbeeps
             beeps2=[beeps2,beep(stims2(k,j),:)];
         end
-        % do truncate at totaldur
-        beeps2 = beeps2(1:totaldur);
+        % don't truncate at totaldur
+        % beeps2 = beeps2(1:totaldur);
 
         if ~strcmp(s2,'none')
-            audiowrite(strcat(savedir,sep,'stimuli',sep,filename2,int2str(k),'.wav'),beeps2,Fs);
-            csvwrite(strcat(savedir,sep,'stimuli',sep,filename2,int2str(k),'stm.csv'),stims2(k,:)');
+            audiowrite(strcat(savedir,sep,filename2,int2str(k),'.wav'),beeps2,Fs);
         end
     end
-
+    
     %% Keyboard
     KbName('UnifyKeyNames');
     escape = KbName('Escape');
@@ -156,13 +160,13 @@ function PlayOddballNP_LED(ratID, arduino, params)
     for ii = 1:maxleverpresses
         if ~strcmp(s1,'none')
             pahandle1(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
-            wavedata1 = audioread(strcat(savedir,sep,'stimuli',sep,filename1,int2str(ii),'.wav'))';
+            wavedata1 = audioread(strcat(savedir,sep,filename1,int2str(ii),'.wav'))';
             PsychPortAudio('FillBuffer', pahandle1(ii), wavedata1);
             disp(strcat('Loaded ',filename1,int2str(ii),'.wav'));
         end
         if ~strcmp(s2,'none') 
             pahandle2(ii) = PsychPortAudio('OpenSlave', pamaster, 1);
-            wavedata2 = audioread(strcat(savedir,sep,'stimuli',sep,filename2,int2str(ii),'.wav'))';
+            wavedata2 = audioread(strcat(savedir,sep,filename2,int2str(ii),'.wav'))';
             PsychPortAudio('FillBuffer', pahandle2(ii), wavedata2);
             disp(strcat('Loaded ',filename2,int2str(ii),'.wav'));
         end
@@ -177,21 +181,18 @@ function PlayOddballNP_LED(ratID, arduino, params)
     disp('Initialized PsychSound.');
     
     %% Variables for recording
-    %baselineNP = zeros(50,2);
-    %bnpind = 1;
     choiceseq = zeros(maxleverpresses,1);
     started = 0;
     aborted = 0;
-    trials = 0;
     nosepoke = 0;
     triggerTimes = zeros(maxleverpresses,2);
     
     %% Loop to record nosepokes
     disp('Hit any key to start recording nosepokes');
     KbStrokeWait;
-    disp('Beginning trials...');
     beginTimeRecord = GetSecs;
     beginDateRecord = datetime('now');
+    fprintf(strcat('Beginning trials at \t',datestr(beginDateRecord,'HH:MM:SS'),'...\n'));
     
     vindex = 1;    
     disp('Hit Enter to start trial, Esc to abort.');
@@ -213,8 +214,7 @@ function PlayOddballNP_LED(ratID, arduino, params)
             KbReleaseWait;
 
             if keyCode(escape) % To abort
-                abortTime = GetSecs;
-                csvwrite(strcat(savedir,savefilenameStart,'_NPtime.csv'),triggerTimes-beginTimeTrial);
+                abortTime = GetSecs;                    
                 fprintf('Aborting recording at %d sec\n', abortTime - beginTimeRecord);
                 aborted = 1;
                 break;
@@ -222,15 +222,13 @@ function PlayOddballNP_LED(ratID, arduino, params)
                 started = 1;
                 tStartSound = uint64(0);
                 j_trial = 1;
-                triggerTimes = zeros(maxleverpresses,2);
                 beginDateTrial = datetime('now');
-                savefilenameStart = strcat(stimtype,sep,ratID,'_',datestr(beginDateTrial,'mm-dd-yyyy_HH-MM-SS-FFF'));
                 beginTimeTrial = GetSecs;
                 voltage1(vindex+1) = 6;
                 voltage2(vindex+1) = 6;
                 vindex = vindex + 1;
                 tic; % tic/toc pair 1
-                fprintf(strcat('Beginning trial %d at\t', datestr(beginDateTrial,'HH:MM:SS'),'\n'),trials+1);
+                fprintf(strcat('Beginning trial at\t', datestr(beginDateTrial,'HH:MM:SS'),'...\n'));
             end
             % Reset keyCode array
             keyCode = zeros(size(keyCode));
@@ -297,14 +295,13 @@ function PlayOddballNP_LED(ratID, arduino, params)
                 end
             else % close trial
                 started = 0;
-                fprintf('Ending trial %d at %f sec \n', trials, GetSecs-beginTimeRecord);
+                fprintf('Ending trial at %f sec \n', GetSecs-beginTimeRecord);
                 trials = trials + 1;
                 voltage1(vindex+1) = -1;
                 voltage2(vindex+1) = -1;
                 vindex = vindex + 1;
-                % Save nosepoke times to CSV file
-                csvwrite(strcat(savedir,savefilenameStart,'_NPtime.csv'),triggerTimes-beginTimeTrial);
-                disp('Hit Enter to start another trial, Esc to abort.');
+                
+                disp('Hit Esc to abort recording.');
             end
         else
              if (voltage1(vindex) < 3) && nosepoke == 0
@@ -325,7 +322,7 @@ function PlayOddballNP_LED(ratID, arduino, params)
         vindex = vindex + 1;
     end
 
-    % End of session, close down driver & arduino:
+    %% End of session, close down driver & arduino:
     endTimeRecord = GetSecs;
     fprintf('Duration of recording %d seconds \n',endTimeRecord-beginTimeRecord);
     fprintf('Nosepoke samples %d \n',nnz(voltage1));
@@ -337,66 +334,58 @@ function PlayOddballNP_LED(ratID, arduino, params)
     
         clear ard1 ard2;
     end
-    endTime = datetime('now');
-    disp('Ending session...');
-    %BaselineNP(:,2) = BaselineNP(:,2) - beginTimeRecord;
+    endDateRecord = datetime('now');
+    fprintf(strcat('Ending session at\t',datestr(endDateRecord,'HH:MM:SS'),'...\n'));
     
-    %% Save summaries
-    savefilenameEnd = strcat(stimtype,sep,ratID,'_',datestr(endTime,'mm-dd-yyyy_HH-MM-SS-FFF'));
-    
-    % Save baseline nosepokes to CSV file
-    %csvwrite(strcat(savedir,savefilenameStart,'_BLNP.csv'),BaselineNP);
-    
-    % Save nosepoke voltage trace to CSV file
-    csvwrite(strcat(savedir,savefilenameEnd,'_voltage1.csv'),nonzeros(voltage1));
-    csvwrite(strcat(savedir,savefilenameEnd,'_voltage2.csv'),nonzeros(voltage2));
-    
-%     % Save generated stimuli to CSV file
-%     csvwrite(strcat(savedir,savefilenameEnd,'.csv'),[stims1',stims2',intvs1,intvs2]);
-
-%     % Save actually used stimuli to CSV file
-%     used_stims = zeros(nbeeps,maxleverpresses);
-%     used_intvs = zeros(nbeeps,maxleverpresses);
-%     for lp = 1:maxleverpresses
-%         if choiceseq(lp) == 1
-%             used_stims(:,lp) = stims1(lp,:)';
-%             used_intvs(:,lp) = intvs1(:,lp);
-%         elseif choiceseq(lp) == 2
-%             used_stims(:,lp) = stims2(lp,:)';
-%             used_intvs(:,lp) = intvs2(:,lp);
-%         end
-%     end
-%     csvwrite(strcat(savedir,savefilenameEnd,'_used.csv'),[used_stims,used_intvs]);
-    
-    
-    % Save summary to TXT file
-    fh = fopen(strcat(savedir,savefilenameEnd,'.txt'),'w');
-
-    fprintf(fh,'------------Experiment summary------------\n');
-    fprintf(fh,strcat('BEGIN SESSION:\t',datestr(beginDateRecord),'\n'));
-    fprintf(fh,strcat('END SESSION:\t',datestr(endTime),'\n'));
-    fprintf(fh,strcat('Number of completed trials:\t',num2str(trials),'\n'));
-    fprintf(fh,strcat('Assumed voltage sampling rate:\t',num2str(vSampleRate),'\n'));
-    
-    fprintf(fh,strcat('Stim 1 (COM3):\t',s1,'\t Stim 2 (COM4):\t',s2,'\n'));
-    
-    fprintf(fh,'Number of oddballs:\t %d \n',nodd);
-    
-    fprintf(fh,strcat('Rat ID:\t\t',ratID,'\n'));
-
-    fprintf(fh,strcat('Lever Press times:\t',mat2str(round(10*(triggerTimes-beginTimeRecord))/10),'\n'));
-    fprintf(fh,strcat('Choices:\t',mat2str(choiceseq),'\n'));
-
-    fprintf(fh,strcat('Saved NP voltage trace in:\t',savefilenameEnd,'_voltage1.csv,',savefilenameEnd,'_voltage2.csv\n'));
-    
-    if aborted
-        fprintf(fh,'Aborted session at %d sec \n',abortTime - beginTimeRecord);
+    %% Save nosepoke time data
+    if ~isempty(nonzeros(triggerTimes(:,1)))
+        csvwrite(strcat(savedir,sep,'NPtime1.csv'),nonzeros(triggerTimes(:,1))-beginTimeTrial);
+    else
+        disp('No nosepokes in COM3');
+    end
+    if ~isempty(nonzeros(triggerTimes(:,2)))
+        csvwrite(strcat(savedir,sep,'NPtime1.csv'),nonzeros(triggerTimes(:,1))-beginTimeTrial);
+    else
+        disp('No nosepokes in COM4');
     end
 
-    fprintf(fh,'------------------------------------------\n');
-    fclose(fh);
-
-    disp('Saved summaries.');
+    %% Save voltage data
+    csvwrite(strcat(savedir,sep,'voltage1.csv'),nonzeros(voltage1));
+    csvwrite(strcat(savedir,sep,'voltage2.csv'),nonzeros(voltage2));
+    
+    %% Save stimuli in CSV
+    if ~strcmp(s1,'none')
+        csvwrite(strcat(savedir,sep,filename1,'.csv'),stims1');
+    elseif ~strcmp(s2,'none')
+        csvwrite(strcat(savedir,sep,filename2,'.csv'),stims2');
+    end
+    
+    %% Save choice sequence in CSV
+    csvwrite(strcat(savedir,sep,'choices.csv'),choiceseq);
+    
+   %% Save actually used stimuli to CSV file
+    used_stims = zeros(nbeeps,maxleverpresses);
+%     used_intvs = zeros(nbeeps,maxleverpresses);
+    for lp = 1:maxleverpresses
+        if choiceseq(lp) == 1
+            used_stims(:,lp) = stims1(lp,:)';
+%             used_intvs(:,lp) = intvs1(:,lp);
+        elseif choiceseq(lp) == 2
+            used_stims(:,lp) = stims2(lp,:)';
+%             used_intvs(:,lp) = intvs2(:,lp);
+        end
+    end
+    csvwrite(strcat(savedir,sep,'stim_used.csv'),used_stims);    
+    
+    %% Save session data to MAT file
+    if ~aborted
+        save('sessiondata.mat','ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord');
+    else
+        save('sessiondata.mat','ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
+    end
+    
+    
+    disp('Saved data.');
     
     %% Plot nosepoke voltage time series
     plot(nonzeros(voltage1),'b');
@@ -404,5 +393,5 @@ function PlayOddballNP_LED(ratID, arduino, params)
     plot(nonzeros(voltage2),'r');
     ylim([0,6]);
     legend(strcat(s1,'(COM3)'), strcat(s2,'(COM4)'));
-    savefig(strcat(savedir,savefilenameEnd,'_voltage.fig'));
+    savefig(strcat(savedir,sep,'voltage.fig'));
 end
