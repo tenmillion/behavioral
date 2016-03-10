@@ -379,9 +379,9 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     
     %% Save session data to MAT file
     if ~aborted
-        save('sessiondata.mat','ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord');
+        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord');
     else
-        save('sessiondata.mat','ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
+        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
     end
     
     
