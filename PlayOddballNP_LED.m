@@ -412,7 +412,6 @@ function PlayOddballNP_LED(ratID, session, arduinoON, params)
     csvwrite(strcat(savedir,sep,'stim_used.csv'),used_stims);    
     
     %% Save session data to MAT file
-<<<<<<< HEAD
     if aborted && started
         save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
     elseif started
@@ -421,12 +420,6 @@ function PlayOddballNP_LED(ratID, session, arduinoON, params)
         save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','endTimeRecord','endDateRecord','abortTime');
     else
         save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduinoON','s1','s2','session','maxnosepokes','nodd','ttrial','Fs','totaldurSec','vSampleRate','started','aborted','beginTimeRecord','beginDateRecord','endTimeRecord','endDateRecord');
-=======
-    if ~aborted
-        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord');
-    else
-        save(strcat(savedir,sep,'sessiondata.mat'),'ratID','arduino','s1','s2','session','ttrial','nodd','beginTimeRecord','beginDateRecord','beginTimeTrial','beginDateTrial','endTimeRecord','endDateRecord','abortTime');
->>>>>>> new-naming-convention
     end
     
     
