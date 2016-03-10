@@ -53,6 +53,9 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
         disp('Connecting to arduino 2 (COM4)...');
         ard2 = arduino('COM4','uno');
         disp('Connected to arduino 2');
+    else
+        v1Sample = repmat(csvread('voltage1.csv'),2,1);
+        v2Sample = repmat(csvread('voltage2.csv'),2,1);
     end
     
     fprintf('Number of oddballs:\t %d \n',nodd);
@@ -205,8 +208,8 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
             voltage1(vindex) = readVoltage(ard1,'A0')+1; % read photo transistor value from arduino
             voltage2(vindex) = readVoltage(ard2,'A0')+1; % read photo transistor value from arduino
         else
-            voltage1(vindex) = rand(1)*2+3; % for testing code
-            voltage2(vindex) = rand(1)*2+3; % for testing code
+            voltage1(vindex) = v1Sample(vindex); % for testing code
+            voltage2(vindex) = v2Sample(vindex); % for testing code
         end
             
         [ keyIsDown, keyTime, keyCodeTemp ] = KbCheck;
@@ -222,7 +225,8 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
                 break;
             elseif keyCode(enter) % To begin trial
                 started = 1;
-                tStartSound = uint64(0);
+                tStartSound1 = uint64(0);
+                tStartSound2 = uint64(0);
                 j_trial = 1;
                 beginDateTrial = datetime('now');
                 beginTimeTrial = GetSecs;
@@ -239,8 +243,9 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
         %% Play sound in response to nosepokes
         if started % if trial has started
             if (toc < ttrial) && (j <= maxleverpresses)% tic/toc pair 1
-                if ~wait1 && ~wait2 % If voltage has been up in both holes
-                    if (voltage1(vindex) < 4) && (toc(tStartSound) > totaldurSec) % tic/toc pair 2
+                
+                if ~wait1 % If voltage has been up
+                    if (voltage1(vindex) < 4) && (toc(tStartSound1) > totaldurSec) && (toc(tStartSound2) > totaldurSec) % tic/toc pair 2
                         choiceseq(j) = 1;
                         triggerTimes(j_trial,1) = GetSecs;
                         if ~strcmp(s1,'none')
@@ -252,7 +257,7 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
                         else
                             disp('!Not playing anything');
                         end
-                        tStartSound = tic; % tic/toc pair 2
+                        tStartSound1 = tic; % tic/toc pair 2
                         wait1 = 1; % waiting for voltage1 to go back up
                         
                         if ~strcmp(s1,'none')
@@ -269,7 +274,19 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
                         vindex = vindex + totaldurSec*vSampleRate; % 
                         j = j+1;
                         j_trial = j_trial+1;
-                    elseif (voltage2(vindex) < 4) && (toc(tStartSound) > totaldurSec) % tic/toc pair 2
+                    else
+                        disp('still playing sound');
+                    end
+                else % If voltage has not gone up
+                    if mean(voltage1(vindex-vSampleRate/2+1:vindex))>4
+                        wait1 = 0;
+                    else
+                        disp('Waiting for voltage 1 to go back up');
+                    end
+                end
+                
+                if ~wait2 % If voltage has been up
+                    if (voltage2(vindex) < 4) && (toc(tStartSound2) > totaldurSec) && (toc(tStartSound1) > totaldurSec) % tic/toc pair 2
                         choiceseq(j) = 2;
                         triggerTimes(j_trial,2) = GetSecs;
                         if ~strcmp(s2,'none')
@@ -281,7 +298,7 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
                         else
                             disp('!Not playing anything');
                         end
-                        tStartSound = tic; % tic/toc pair 2
+                        tStartSound2 = tic; % tic/toc pair 2
                         wait2 = 1; % waiting for voltage2 to go back up
                         
                         if ~strcmp(s2,'none')
@@ -298,15 +315,17 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
                         vindex = vindex + totaldurSec*vSampleRate; % 
                         j = j+1;
                         j_trial = j_trial+1;
+                    else
+                        disp('still playing sound');
                     end
-                else % If voltage in at least one of the holes has not gone up
-                    if mean(voltage1(vindex-vSampleRate/2+1:vindex))>4
-                        wait1 = 0;
-                    end
+                else % If voltage has not gone up
                     if mean(voltage2(vindex-vSampleRate/2+1:vindex))>4
                         wait2 = 0;
+                    else
+                        disp('Waiting for voltage 2 to go back up');
                     end
                 end
+                
             else % close trial
                 started = 0;
                 fprintf('Ending trial at %f sec \n', GetSecs-beginTimeRecord);
