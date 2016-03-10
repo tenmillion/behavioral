@@ -185,6 +185,8 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
     started = 0;
     aborted = 0;
     nosepoke = 0;
+    wait1 = 0;
+    wait2 = 0;
     triggerTimes = zeros(maxleverpresses,2);
     
     %% Loop to record nosepokes
@@ -237,61 +239,73 @@ function PlayOddballNP_LED(ratID, session, arduino, params)
         %% Play sound in response to nosepokes
         if started % if trial has started
             if (toc < ttrial) && (j <= maxleverpresses)% tic/toc pair 1
-                if (voltage1(vindex) < 4) && (toc(tStartSound) > totaldurSec) % tic/toc pair 2
-                    choiceseq(j) = 1;
-                    triggerTimes(j_trial,1) = GetSecs;
-                    if ~strcmp(s1,'none')
-                        if arduino
-                            writeDigitalPin(ard1,'D12',1);
+                if ~wait1 && ~wait2 % If voltage has been up in both holes
+                    if (voltage1(vindex) < 4) && (toc(tStartSound) > totaldurSec) % tic/toc pair 2
+                        choiceseq(j) = 1;
+                        triggerTimes(j_trial,1) = GetSecs;
+                        if ~strcmp(s1,'none')
+                            if arduino
+                                writeDigitalPin(ard1,'D12',1);
+                            end
+                            %disp('Turned on LED 1');
+                            PsychPortAudio('Start', pahandle1(j), [], triggerTimes(j_trial,1));
+                        else
+                            disp('!Not playing anything');
                         end
-                        %disp('Turned on LED 1');
-                        PsychPortAudio('Start', pahandle1(j), [], triggerTimes(j_trial,1));
-                    else
-                        disp('!Not playing anything');
-                    end
-                    tStartSound = tic; % tic/toc pair 2
-                    
-                    if ~strcmp(s1,'none')
-                        fprintf(strcat('Playing\t',filename1,int2str(j),'.wav...\n'));
-                        PsychPortAudio('Stop', pahandle1(j), 3);
-                        if arduino
-                            writeDigitalPin(ard1,'D12',0);
+                        tStartSound = tic; % tic/toc pair 2
+                        wait1 = 1; % waiting for voltage1 to go back up
+                        
+                        if ~strcmp(s1,'none')
+                            fprintf(strcat('Playing\t',filename1,int2str(j),'.wav...\n'));
+                            PsychPortAudio('Stop', pahandle1(j), 3);
+                            if arduino
+                                writeDigitalPin(ard1,'D12',0);
+                            end
+                            %disp('Turned off LED 1');
                         end
-                        %disp('Turned off LED 1');
-                    end
-                    
-                    voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = ones(totaldurSec*vSampleRate,1);
-                    voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = 10*ones(totaldurSec*vSampleRate,1);
-                    vindex = vindex + totaldurSec*vSampleRate; % 
-                    j = j+1;
-                    j_trial = j_trial+1;
-                elseif (voltage2(vindex) < 4) && (toc(tStartSound) > totaldurSec)
-                    choiceseq(j) = 2;
-                    triggerTimes(j_trial,2) = GetSecs;
-                    if ~strcmp(s2,'none')
-                        if arduino
-                            writeDigitalPin(ard2,'D12',1);
-                        end
-                        %disp('Turned on LED 2');
-                        PsychPortAudio('Start', pahandle2(j), [], triggerTimes(j_trial,2));
-                    else
-                        disp('!Not playing anything');
-                    end
-                    tStartSound = tic; % tic/toc pair 2
-                    if ~strcmp(s2,'none')
-                        fprintf(strcat('Playing\t',filename2,int2str(j),'.wav...\n'));
-                        PsychPortAudio('Stop', pahandle2(j), 3);
-                        if arduino
-                            writeDigitalPin(ard2,'D12',0);
-                        end
-                        %disp('Turned off LED 2');
-                    end
 
-                    voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = 10*ones(totaldurSec*vSampleRate,1);
-                    voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = ones(totaldurSec*vSampleRate,1);
-                    vindex = vindex + totaldurSec*vSampleRate; % 
-                    j = j+1;
-                    j_trial = j_trial+1;
+                        voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = ones(totaldurSec*vSampleRate,1);
+                        voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = 10*ones(totaldurSec*vSampleRate,1);
+                        vindex = vindex + totaldurSec*vSampleRate; % 
+                        j = j+1;
+                        j_trial = j_trial+1;
+                    elseif (voltage2(vindex) < 4) && (toc(tStartSound) > totaldurSec) % tic/toc pair 2
+                        choiceseq(j) = 2;
+                        triggerTimes(j_trial,2) = GetSecs;
+                        if ~strcmp(s2,'none')
+                            if arduino
+                                writeDigitalPin(ard2,'D12',1);
+                            end
+                            %disp('Turned on LED 2');
+                            PsychPortAudio('Start', pahandle2(j), [], triggerTimes(j_trial,2));
+                        else
+                            disp('!Not playing anything');
+                        end
+                        tStartSound = tic; % tic/toc pair 2
+                        wait2 = 1; % waiting for voltage2 to go back up
+                        
+                        if ~strcmp(s2,'none')
+                            fprintf(strcat('Playing\t',filename2,int2str(j),'.wav...\n'));
+                            PsychPortAudio('Stop', pahandle2(j), 3);
+                            if arduino
+                                writeDigitalPin(ard2,'D12',0);
+                            end
+                            %disp('Turned off LED 2');
+                        end
+
+                        voltage1(vindex+1:vindex+totaldurSec*vSampleRate) = 10*ones(totaldurSec*vSampleRate,1);
+                        voltage2(vindex+1:vindex+totaldurSec*vSampleRate) = ones(totaldurSec*vSampleRate,1);
+                        vindex = vindex + totaldurSec*vSampleRate; % 
+                        j = j+1;
+                        j_trial = j_trial+1;
+                    end
+                else % If voltage in at least one of the holes has not gone up
+                    if mean(voltage1(vindex-vSampleRate/2+1:vindex))>4
+                        wait1 = 0;
+                    end
+                    if mean(voltage2(vindex-vSampleRate/2+1:vindex))>4
+                        wait2 = 0;
+                    end
                 end
             else % close trial
                 started = 0;
