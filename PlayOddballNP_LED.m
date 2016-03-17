@@ -333,6 +333,7 @@ function PlayOddballNP_LED(ratID, session, arduinoON, params)
                 fprintf('Ending trial at %f sec \n', GetSecs-beginTimeRecord);
                 voltage1(vindex+1) = -1;
                 voltage2(vindex+1) = -1;
+
                 vindex = vindex + 1;                
                 break;
             end
